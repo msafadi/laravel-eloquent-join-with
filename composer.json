@@ -1,0 +1,32 @@
+{
+    "name": "msafadi/laravel-eloquent-join-with",
+    "description": "Laravel Eloquent Join With Relationships",
+    "type": "library",
+    "require": {
+        "php": "^8.2",
+        "illuminate/database": "^11.0",
+        "illuminate/support": "^11.0"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.13",
+        "phpunit/phpunit": "^10.5|^11.0"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Msafadi\\LaravelJoinWith\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Msafadi\\Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Mohammed Safadi",
+            "email": "m.safadi@hotmail.com"
+        }
+    ],
+    "minimum-stability": "dev"
+}
