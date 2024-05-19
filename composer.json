@@ -14,12 +14,12 @@
     "license": "MIT",
     "autoload": {
         "psr-4": {
-            "Msafadi\\LaravelJoinWith\\": "src/"
+            "Safadi\\EloquentJoinWith\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Msafadi\\Tests\\": "tests/"
+            "Safadi\\Tests\\": "tests/"
         }
     },
     "authors": [

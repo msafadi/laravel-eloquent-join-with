@@ -4,21 +4,19 @@ Laravel Eloquent Join With is a package that simplifies performing efficient dat
 
 ## Installation
 
-### Requirements
+You can install the package via composer:
 
--   Laravel version: ^8.x (or later)
-
-### Using Composer
-
-Run `composer require msafadi/laravel-eloquent-join-with` to install the package.
+```console
+composer require msafadi/laravel-eloquent-join-with
+```
 
 ## Usage
 
 There are two ways to use Laravel JoinWith in your application models:
 
-### 1. Include the Trait
+### 1. Use `JoinWith` Trait
 
-You can include the `JoinWith` trait provided by the package in your application models:
+Include the `JoinWith` trait provided by the package in your application models:
 
 ```php
 <?php
@@ -26,7 +24,7 @@ You can include the `JoinWith` trait provided by the package in your application
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Msafadi\EloquentJoinWith\Database\Concerns\JoinWith;
+use Safadi\EloquentJoinWith\Database\Concerns\JoinWith;
 
 class User extends Model
 {
@@ -40,7 +38,7 @@ With the trait included, you can then use the `joinWith` method directly on your
 
 ### 2. Extend the Model Class
 
-Alternatively, you can extend your model classes with `Msafadi\LaravelJoinWith\Database\Eloquent\Model`:
+Alternatively, you can extend your model classes with `Safadi\EloquentJoinWith\Database\Eloquent\Model`:
 
 ```php
 <?php
@@ -48,7 +46,7 @@ Alternatively, you can extend your model classes with `Msafadi\LaravelJoinWith\D
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Msafadi\EloquentJoinWith\Database\Eloquent\Model as JoinWithModel;
+use Safadi\EloquentJoinWith\Database\Eloquent\Model as JoinWithModel;
 
 class User extends JoinWithModel
 {
@@ -58,7 +56,7 @@ class User extends JoinWithModel
 
 This approach also grants access to the `joinWith` method on your model queries.
 
-### Basic Usage
+### Usage Examples
 
 Once you've integrated Laravel JoinWith into your models, you can use the `joinWith` method on your Eloquent model queries.
 
@@ -75,14 +73,22 @@ $user = User::joinWith('profile')
 
 This code retrieves the user information along with the associated profile's avatar in a single query.
 
-### Advanced Usage
-
-For more complex scenarios, you can pass a closure to the `joinWith` method to customize the join conditions:
+As the standard `with` method, you can use nested realtions syntax:
 
 ```php
-$orders = Orders::joinWith('user', function ($query) {
+$user = User::joinWith('profile.country')
+            ->first();
+
+// This will execute a single query joining the users, profiles, and countries tables
+// based on the defined HasOne relationship between User and Profile and between Profile and Country models.
+```
+
+For more complex scenarios, you can pass a closure to the `joinWith` method to customize the join conditions, similar to the standard `with` method:
+
+```php
+$orders = Orders::joinWith(['user' => function ($query) {
     $query->where('users.status', '=', 'verified');
-})
+}])
 ->get();
 
 // This will execute a single query joining orders and users tables
@@ -91,10 +97,10 @@ $orders = Orders::joinWith('user', function ($query) {
 
 This example retrieves orders that belongs to a verified user, combining the user and order information in a single query.
 
-## Important Note
+## Limitations
 
--   Laravel JoinWith currently works with HasOne and BelongsTo relationships. Support for other relationship types might be added in future versions.
--   Nested relations is not supported yet but might be added in future versions.
+-   Laravel JoinWith currently works with `HasOne` and `BelongsTo` relationships. Support for other relationship types might be added in future versions.
+-   Specifying which columns of the relationship you would like to retrieve is not supported yet but might be added in future versions.
 
 ## Contributing
 

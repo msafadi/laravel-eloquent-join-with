@@ -1,16 +1,30 @@
 <?php
 
-namespace Msafadi\LaravelJoinWith\Database\Concerns;
+namespace Safadi\EloquentJoinWith\Database\Concerns;
 
-use Msafadi\LaravelJoinWith\Database\Eloquent\Builder;
+use Safadi\EloquentJoinWith\Database\Eloquent\Builder;
 
 trait JoinWith
 {
+
+    /**
+     * Begin querying a model with join relations.
+     *
+     * @param  array|string  $relations
+     * @return \Safadi\EloquentJoinWith\Database\Eloquent\Builder
+     */
+    public static function joinWith($relations)
+    {
+        return static::query()->joinWith(
+            is_string($relations) ? func_get_args() : $relations
+        );
+    }
+
     /**
      * Create a new Eloquent query builder for the model.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
-     * @return \Msafadi\LaravelJoinWith\Database\Eloquent\Builder|static
+     * @return \Safadi\EloquentJoinWith\Database\Eloquent\Builder|static
      */
     public function newEloquentBuilder($query)
     {

@@ -1,10 +1,10 @@
 <?php
 
-namespace Msafadi\Tests;
+namespace Safadi\Tests;
 
 use Illuminate\Database\Capsule\Manager;
 use Illuminate\Database\Eloquent\Model;
-use Msafadi\LaravelJoinWith\Database\Concerns\JoinWith;
+use Safadi\EloquentJoinWith\Database\Concerns\JoinWith;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseEloquentJoinWithTest extends TestCase
@@ -13,9 +13,7 @@ class DatabaseEloquentJoinWithTest extends TestCase
     {
         $this->seedData();
 
-        $userWithProfile = JoinWithTestUser::joinWith('profile')
-            ->select('users.id')
-            ->find(1);
+        $userWithProfile = JoinWithTestUser::joinWith('profile')->find(1);
 
         $this->assertInstanceOf(JoinWithTestProfile::class, $userWithProfile->profile);
     }
@@ -24,10 +22,10 @@ class DatabaseEloquentJoinWithTest extends TestCase
     {
         $this->seedData();
 
-        $userWithProfile = JoinWithTestUser::joinWith('profile', function ($query) {
+        $userWithProfile = JoinWithTestUser::joinWith(['profile' => function ($query) {
             $query->where('type', '=', 'buyer');
-        })->find(1);
-
+        }])->find(1);
+        
         $this->assertEquals(2, $userWithProfile->profile->id);
     }
 
@@ -54,9 +52,35 @@ class DatabaseEloquentJoinWithTest extends TestCase
     {
         $this->seedData();
 
-        $profileWithUser = JoinWithTestProfile::joinWith('user')->find(1);
-
+        $profileWithUser = JoinWithTestProfile::joinWith(['user', 'country'])->find(1);
+        
         $this->assertEquals(1, $profileWithUser->user->id);
+        $this->assertEquals(1, $profileWithUser->country->id);
+        $this->assertJsonStringEqualsJsonString('{"id":1,"user_id":1,"country_id":1,"type":"seller","user":{"id":1},"country":{"id":1}}', $profileWithUser->toJson());
+    }
+
+    public function testJoinWithNested()
+    {
+        $this->seedData();
+
+        $userWithProfile = JoinWithTestUser::joinWith('profile.country')->find(1);
+
+        $this->assertInstanceOf(JoinWithTestCountry::class, $userWithProfile->profile->country);
+    }
+
+    public function testJoinWithCollection()
+    {
+        $this->seedData();
+
+        $collection = JoinWithTestUser::joinWith([
+            'profile' => function($query) {
+                $query->where('type', '=', 'buyer');
+            },
+            'profile.country',
+        ])->get();
+        
+        $this->assertInstanceOf(JoinWithTestCountry::class, $collection[0]->profile->country);
+        $this->assertJsonStringEqualsJsonString('[{"id":1,"profile":{"id":2,"user_id":1,"country_id":2,"type":"buyer","country":{"id":2}}},{"id":2,"profile":null}]', $collection->toJson());
     }
 
     protected function setUp(): void
@@ -199,7 +223,8 @@ class JoinWithTestProfile extends Model
     public function country()
     {
         return $this
-            ->belongsTo(JoinWithTestCountry::class, 'country_id', 'id');
+            ->belongsTo(JoinWithTestCountry::class, 'country_id', 'id')
+            ->withDefault();
     }
 }
 
