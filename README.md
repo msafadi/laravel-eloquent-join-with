@@ -73,7 +73,7 @@ $user = User::joinWith('profile')
 
 This code retrieves the user information along with the associated profile's avatar in a single query.
 
-As the standard `with` method, you can use nested realtions syntax:
+As the standard `with` method, you can also use nested relations:
 
 ```php
 $user = User::joinWith('profile.country')
@@ -108,4 +108,4 @@ We welcome contributions to this package! If you'd like to contribute, please fe
 
 ## License
 
-This package is distributed under the MIT License.
+This package is distributed under the MIT License. Please see the LICENSE file for more information.
