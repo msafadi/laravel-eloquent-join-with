@@ -7,21 +7,20 @@ use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use RuntimeException;
 
 class Builder extends EloquentBuilder
 {
     /**
-     * @var array<string>
+     * @var array
      */
     protected $joinWith = [];
 
     /**
-     * @var array<string>
+     * @var array
      */
-    protected static $cachedColumns;
+    protected static $cachedColumns = [];
 
     /**
      * @var array
@@ -68,13 +67,47 @@ class Builder extends EloquentBuilder
         if (count($models = $builder->getModels($columns)) > 0) {
             // Keep original eager load of relations
             $models = $builder->eagerLoadRelations($models);
-
-            $models = $builder->populateJoins($models);
         }
         
         return $this->applyAfterQueryCallbacks(
             $builder->getModel()->newCollection($models)
         );
+    }
+
+    /**
+     * Get the hydrated models without eager loading.
+     *
+     * @param  array|string  $columns
+     * @return \Illuminate\Database\Eloquent\Model[]|static[]
+     */
+    public function getModels($columns = ['*'])
+    {
+        return $this->hydrate(
+            $this->query->get($columns)->all()
+        )->all();
+    }
+
+    /**
+     * Create a collection of models from plain arrays.
+     *
+     * @param  array  $items
+     * @return \Illuminate\Database\Eloquent\Collection
+     */
+    public function hydrate(array $items)
+    {
+        $instance = $this->newModelInstance();
+
+        return $instance->newCollection(array_map(function ($item) use ($items, $instance) {
+            
+            $model = $instance->newFromBuilder($item);
+            $this->populateModel($model, $item);
+
+            if (count($items) > 1) {
+                $model->preventsLazyLoading = Model::preventsLazyLoading();
+            }
+
+            return $model;
+        }, $items));
     }
 
     /**
@@ -93,15 +126,13 @@ class Builder extends EloquentBuilder
         
         foreach ($this->joinWith as $name => $constraints) {
             // Skip nested relations
-            if (Str::contains($name, '.')) {
-                $parts = explode('.', $name);
+            if (strpos($name, '.') !== false) {
                 $parent = $this->getModel();
-                foreach ($parts as $i => $n) {
-                    $relation = $parent::query()->getRelation($n);
+                foreach (explode('.', $name) as $name) {
+                    $relation = $parent::query()->getRelation($name);
                     $this->applyRelationJoin($relation, $columns, static function() {});
                     $parent = $relation->getRelated();
                 }
-                continue;
             } else {
                 $relation = $this->getRelation($name);
 
@@ -129,86 +160,94 @@ class Builder extends EloquentBuilder
 
         $related = $relation->getRelated();
         $table = $related->getTable();
-        $related_columns = $this->applyQualifiedColumnName($this->getColumnListing($table), $table, "{$table}_");
-        $compareKey = method_exists($relation, 'getQualifiedOwnerKeyName')
-            ? $relation->getQualifiedOwnerKeyName()
-            : $relation->getQualifiedParentKeyName();
+        $related_columns = $this->applyQualifiedColumnName($this->getColumnListing($table), $table, $table.'_');
 
         $columns = array_merge($columns, $related_columns);
-        $this
-            ->select($columns)
-            ->leftJoin($table, function($join) use($relation, $compareKey, $constraints) {
-                $join->on(
-                    $relation->getQualifiedForeignKeyName(), 
-                    '=', 
-                    $compareKey
-                );
-                $constraints($join);
-            });
+
+        $this->leftJoin($table, function($join) use($relation, $constraints) {
+            $compareKey = $relation instanceof BelongsTo
+                ? $relation->getQualifiedOwnerKeyName()
+                : $relation->getQualifiedParentKeyName();
+
+            $join->on(
+                $relation->getQualifiedForeignKeyName(), 
+                '=', 
+                $compareKey
+            );
+            // Apply realtion constraints on the join clause
+            $constraints($join);
+        });
         
     }
 
-    protected function populateJoins(array $models)
+    /**
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param object|array $item
+     */
+    protected function populateModel($model, $item)
     {
-        foreach ($models as $model) {
-            $this->populatedJoins = [];
-            $this->populateModel($model);
-        }
-        return $models;
-    }
-
-    protected function populateModel($model)
-    {
-        $attributes = $model->getAttributes();
+        $attributes = (array) $item;
+        $this->populatedJoins = [];
         
-        foreach ($this->joinWith as $name => $constraints) {
+        foreach ($this->joinWith as $name => $constraints) {   
             // Nested relation
-            if (Str::contains($name, '.')) {
-                $parts = explode('.', $name);
+            if (strpos($name, '.') !== false) {
                 $parent = $this->getModel();
-                foreach ($parts as $n) {
-                    $parent = $this->populateRelated($parent, $n, $attributes);
+                foreach (explode('.', $name) as $name) {
+                    $parent = $this->populateRelated($parent, $name, $attributes);
                 }
             } else {
                 $this->populateRelated($model, $name, $attributes);
             }
         }
-        $model->setRawAttributes($attributes);
+        $model->setRawAttributes($attributes, true);
     }
 
+    /**
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $name Relation name
+     * @param array $attributes
+     * @return \Illuminate\Database\Eloquent\Model
+     */
     protected function populateRelated($model, $name, &$attributes)
     {
         $relation = $model::query()->getRelation($name);
         $related = $relation->getRelated();
 
         $populatedKey = get_class($model).'.'.get_class($related);
-        if (Arr::has($this->populatedJoins, $populatedKey)) {
+        if (isset($this->populatedJoins[$populatedKey])) {
             return $this->populatedJoins[$populatedKey];
         }
         
         $related_attributes = [];
         foreach ($attributes as $key => $value) {
-            if (Str::startsWith($key, $related->getTable() . '_')) {
+            if (str_starts_with($key, $related->getTable() . '_')) {
                 $related_attributes[Str::remove($related->getTable() . '_', $key)] = $value;
                 unset($attributes[$key]); // Remove relation attributes from the query results
             }
         }
         
-        // No relation results, init the relation with default attributes if applicable
+        // No relation results, init the relation with default attributes if defined
         if ($related_attributes[$related->getKeyName()] === null) {
             $relation->initRelation([$model], $name);
         } else {
-            $model->setRelation($name, $related->setRawAttributes($related_attributes));
+            $model->setRelation($name, $related->setRawAttributes($related_attributes, true));
         }
 
         $this->populatedJoins[$populatedKey] = $related;
         return $related;
     }
 
+    /**
+     * @param array $columns
+     * @param string $table
+     * @param $as column alias prefix
+     * @return array
+     */
     protected function applyQualifiedColumnName(array $columns, string $table, $as = '')
     {
         return array_map(function($column) use ($table, $as) {
-            if (!Str::contains($column, '.')) {
+            if (strpos($column, '.') === false) {
                 $column = "{$table}.{$column}" . ($as? " AS {$as}{$column}" : '');
             }
             return $column;
@@ -221,7 +260,8 @@ class Builder extends EloquentBuilder
      */
     protected function getColumnListing($table)
     {
-        if (!Arr::has(static::$cachedColumns, $table)) {
+        // TO DO: cache table columns using a cache driver..
+        if (!isset(static::$cachedColumns[$table])) {
             static::$cachedColumns[$table] = $this->getConnection()->getSchemaBuilder()->getColumnListing($table);
         }
         return static::$cachedColumns[$table];

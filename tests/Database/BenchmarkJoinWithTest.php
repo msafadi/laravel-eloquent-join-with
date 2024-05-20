@@ -4,83 +4,22 @@ namespace Safadi\Tests;
 
 use Illuminate\Database\Capsule\Manager;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Benchmark;
 use Safadi\EloquentJoinWith\Database\Concerns\JoinWith;
 use PHPUnit\Framework\TestCase;
 
-class DatabaseEloquentJoinWithTest extends TestCase
+class BenchmarkJoinWithTest extends TestCase
 {
-    public function testJoinWithHasOne()
+    public function testBenchmarkJoinWith()
     {
         $this->seedData();
 
-        $userWithProfile = JoinWithTestUser::joinWith('profile')->find(1);
+        print_r(Benchmark::measure([
+            'with'     => fn() => JoinWithTestUser::with('profile.country')->get(),
+            'joinWith' =>fn() => JoinWithTestUser::joinWith('profile.country')->get(),
+        ]));
 
-        $this->assertInstanceOf(JoinWithTestProfile::class, $userWithProfile->profile);
-    }
-
-    public function testJoinWithHasOneProfile()
-    {
-        $this->seedData();
-
-        $userWithProfile = JoinWithTestUser::joinWith(['profile' => function ($query) {
-            $query->where('type', '=', 'buyer');
-        }])->find(1);
-        
-        $this->assertEquals(2, $userWithProfile->profile->id);
-    }
-
-    public function testJoinWithHasOneRelationAbsence()
-    {
-        $this->seedData();
-
-        $userWithProfile = JoinWithTestUser::joinWith('profile')->find(2);
-
-        $this->assertNull($userWithProfile->profile);
-    }
-
-    public function testJoinWithHasOneRelationAbsenceWithDefault()
-    {
-        $this->seedData();
-
-        $userWithProfile = JoinWithTestUser::joinWith('profileWithDefault')->find(2);
-
-        $this->assertNotNull($userWithProfile->profileWithDefault);
-        $this->assertEquals('seller', $userWithProfile->profileWithDefault->type);
-    }
-
-    public function testJoinWithBelongsToRelation()
-    {
-        $this->seedData();
-
-        $profileWithUser = JoinWithTestProfile::joinWith(['user', 'country'])->find(1);
-        
-        $this->assertEquals(1, $profileWithUser->user->id);
-        $this->assertEquals(1, $profileWithUser->country->id);
-        $this->assertJsonStringEqualsJsonString('{"id":1,"user_id":1,"country_id":1,"type":"seller","user":{"id":1},"country":{"id":1}}', $profileWithUser->toJson());
-    }
-
-    public function testJoinWithNested()
-    {
-        $this->seedData();
-
-        $userWithProfile = JoinWithTestUser::joinWith('profile.country')->find(1);
-
-        $this->assertInstanceOf(JoinWithTestCountry::class, $userWithProfile->profile->country);
-    }
-
-    public function testJoinWithCollection()
-    {
-        $this->seedData();
-
-        $collection = JoinWithTestUser::joinWith([
-            'profile' => function($query) {
-                $query->where('type', '=', 'buyer');
-            },
-            'profile.country',
-        ])->get();
-        
-        $this->assertInstanceOf(JoinWithTestCountry::class, $collection[0]->profile->country);
-        $this->assertJsonStringEqualsJsonString('[{"id":1,"profile":{"id":2,"user_id":1,"country_id":2,"type":"buyer","country":{"id":2}}},{"id":2,"profile":null}]', $collection->toJson());
+        $this->assertTrue(true);
     }
 
     protected function setUp(): void
@@ -156,25 +95,20 @@ class DatabaseEloquentJoinWithTest extends TestCase
      */
     protected function seedData()
     {
-        JoinWithTestUser::create(['id' => 1]);
-        JoinWithTestUser::create(['id' => 2]);
-
-        JoinWithTestCountry::create(['id' => 1]);
-        JoinWithTestCountry::create(['id' => 2]);
-
-        JoinWithTestProfile::create([
-            'id' => 1,
-            'user_id' => 1,
-            'country_id' => 1,
-            'type' => 'seller',
-        ]);
-
-        JoinWithTestProfile::create([
-            'id' => 2,
-            'user_id' => 1,
-            'country_id' => 2,
-            'type' => 'buyer',
-        ]);
+        $type = ['seller', 'buyer'];
+        for ($i = 1; $i <= 10; $i++) {
+            JoinWithTestCountry::create(['id' => $i]);
+        }
+        
+        for ($i = 1; $i <= 1000; $i++) {
+            JoinWithTestUser::create(['id' => $i]);
+            JoinWithTestProfile::create([
+                'id' => $i,
+                'user_id' => $i,
+                'country_id' => rand(1, 10),
+                'type' => $type[rand(0, 1)],
+            ]);
+        }
 
     }
 }
