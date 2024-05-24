@@ -1,6 +1,17 @@
 {
     "name": "msafadi/laravel-eloquent-join-with",
     "description": "Laravel Eloquent Join With Relationships",
+    "keywords": [
+        "laravel",
+        "eloquent",
+        "model",
+        "database",
+        "relationships",
+        "HasOne",
+        "BelongsTo",
+        "join",
+        "performance"
+    ],
     "type": "library",
     "require": {
         "php": "^8.2",

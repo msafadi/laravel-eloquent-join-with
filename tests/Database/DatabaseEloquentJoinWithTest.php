@@ -52,20 +52,21 @@ class DatabaseEloquentJoinWithTest extends TestCase
     {
         $this->seedData();
 
-        $profileWithUser = JoinWithTestProfile::joinWith(['user', 'country'])->find(1);
+        $profileWithUser = JoinWithTestProfile::joinWith(['user', 'city'])->find(1);
         
         $this->assertEquals(1, $profileWithUser->user->id);
-        $this->assertEquals(1, $profileWithUser->country->id);
-        $this->assertJsonStringEqualsJsonString('{"id":1,"user_id":1,"country_id":1,"type":"seller","user":{"id":1},"country":{"id":1}}', $profileWithUser->toJson());
+        $this->assertEquals(1, $profileWithUser->city->id);
+        $this->assertJsonStringEqualsJsonString('{"id":1,"user_id":1,"city_id":1,"type":"seller","user":{"id":1},"city":{"id":1,"country_id":1}}', $profileWithUser->toJson());
     }
 
     public function testJoinWithNested()
     {
         $this->seedData();
 
-        $userWithProfile = JoinWithTestUser::joinWith('profile.country')->find(1);
+        $userWithProfile = JoinWithTestUser::joinWith('profile.city.country')->find(1);
 
-        $this->assertInstanceOf(JoinWithTestCountry::class, $userWithProfile->profile->country);
+        $this->assertInstanceOf(JoinWithTestCountry::class, $userWithProfile->profile->city->country);
+        $this->assertJsonStringEqualsJsonString('{"id":1,"profile":{"id":1,"user_id":1,"city_id":1,"type":"seller","city":{"id":1,"country_id":1,"country":{"id":1}}}}', $userWithProfile->toJson());
     }
 
     public function testJoinWithCollection()
@@ -76,11 +77,11 @@ class DatabaseEloquentJoinWithTest extends TestCase
             'profile' => function($query) {
                 $query->where('type', '=', 'buyer');
             },
-            'profile.country',
+            'profile.city',
         ])->get();
         
-        $this->assertInstanceOf(JoinWithTestCountry::class, $collection[0]->profile->country);
-        $this->assertJsonStringEqualsJsonString('[{"id":1,"profile":{"id":2,"user_id":1,"country_id":2,"type":"buyer","country":{"id":2}}},{"id":2,"profile":null}]', $collection->toJson());
+        $this->assertInstanceOf(JoinWithTestCity::class, $collection[0]->profile->city);
+        $this->assertJsonStringEqualsJsonString('[{"id":1,"profile":{"id":2,"user_id":1,"city_id":2,"type":"buyer","city":{"id":2,"country_id":1}}},{"id":2,"profile":null}]', $collection->toJson());
     }
 
     protected function setUp(): void
@@ -104,6 +105,7 @@ class DatabaseEloquentJoinWithTest extends TestCase
     protected function tearDown(): void
     {
         $this->schema()->drop('profiles');
+        $this->schema()->drop('cities');
         $this->schema()->drop('countries');
         $this->schema()->drop('users');
     }
@@ -143,10 +145,15 @@ class DatabaseEloquentJoinWithTest extends TestCase
             $table->increments('id');
         });
 
+        $this->schema()->create('cities', function ($table) {
+            $table->increments('id');
+            $table->unsignedInteger('country_id');
+        });
+
         $this->schema()->create('profiles', function ($table) {
             $table->increments('id');
             $table->unsignedInteger('user_id');
-            $table->unsignedInteger('country_id');
+            $table->unsignedInteger('city_id');
             $table->enum('type', ['seller', 'buyer'])->default('seller');
         });
     }
@@ -162,17 +169,26 @@ class DatabaseEloquentJoinWithTest extends TestCase
         JoinWithTestCountry::create(['id' => 1]);
         JoinWithTestCountry::create(['id' => 2]);
 
+        JoinWithTestCity::create([
+            'id' => 1,
+            'country_id' => 1,
+        ]);
+        JoinWithTestCity::create([
+            'id' => 2,
+            'country_id' => 1,
+        ]);
+
         JoinWithTestProfile::create([
             'id' => 1,
             'user_id' => 1,
-            'country_id' => 1,
+            'city_id' => 1,
             'type' => 'seller',
         ]);
 
         JoinWithTestProfile::create([
             'id' => 2,
             'user_id' => 1,
-            'country_id' => 2,
+            'city_id' => 2,
             'type' => 'buyer',
         ]);
 
@@ -211,7 +227,7 @@ class JoinWithTestProfile extends Model
 
     protected $table = 'profiles';
 
-    protected $fillable = ['id', 'user_id', 'country_id', 'type'];
+    protected $fillable = ['id', 'user_id', 'city_id', 'type'];
 
     public $timestamps = false;
 
@@ -221,10 +237,10 @@ class JoinWithTestProfile extends Model
             ->belongsTo(JoinWithTestUser::class, 'user_id', 'id');
     }
 
-    public function country()
+    public function city()
     {
         return $this
-            ->belongsTo(JoinWithTestCountry::class, 'country_id', 'id')
+            ->belongsTo(JoinWithTestCity::class, 'city_id', 'id')
             ->withDefault();
     }
 }
@@ -239,4 +255,23 @@ class JoinWithTestCountry extends Model
 
     public $timestamps = false;
 
+}
+
+class JoinWithTestCity extends Model
+{
+
+    use JoinWith;
+
+    protected $table = 'cities';
+
+    protected $fillable = ['id', 'country_id'];
+
+    public $timestamps = false;
+
+    public function country()
+    {
+        return $this
+            ->belongsTo(JoinWithTestCountry::class, 'country_id', 'id')
+            ->withDefault();
+    }
 }
