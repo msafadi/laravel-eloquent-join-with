@@ -7,6 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Benchmark;
 use Safadi\EloquentJoinWith\Database\Concerns\JoinWith;
 use PHPUnit\Framework\TestCase;
+use Safadi\Tests\Database\Models\JoinWithTestCity;
+use Safadi\Tests\Database\Models\JoinWithTestCountry;
+use Safadi\Tests\Database\Models\JoinWithTestProfile;
+use Safadi\Tests\Database\Models\JoinWithTestUser;
 
 class BenchmarkJoinWithTest extends TestCase
 {
@@ -15,8 +19,8 @@ class BenchmarkJoinWithTest extends TestCase
         $this->seedData();
 
         print_r(Benchmark::measure([
-            'with'     => fn() => JoinWithTestUser::with('profile.country')->get(),
-            'joinWith' =>fn() => JoinWithTestUser::joinWith('profile.country')->get(),
+            'with'     => fn() => JoinWithTestUser::with('profile.city')->get(),
+            'joinWith' => fn() => JoinWithTestUser::joinWith('profile.city')->get(),
         ]));
 
         $this->assertTrue(true);
@@ -44,6 +48,7 @@ class BenchmarkJoinWithTest extends TestCase
     {
         $this->schema()->drop('profiles');
         $this->schema()->drop('countries');
+        $this->schema()->drop('cities');
         $this->schema()->drop('users');
     }
 
@@ -82,10 +87,15 @@ class BenchmarkJoinWithTest extends TestCase
             $table->increments('id');
         });
 
+        $this->schema()->create('cities', function ($table) {
+            $table->increments('id');
+            $table->unsignedInteger('country_id');
+        });
+
         $this->schema()->create('profiles', function ($table) {
             $table->increments('id');
             $table->unsignedInteger('user_id');
-            $table->unsignedInteger('country_id');
+            $table->unsignedInteger('city_id');
             $table->enum('type', ['seller', 'buyer'])->default('seller');
         });
     }
@@ -95,82 +105,23 @@ class BenchmarkJoinWithTest extends TestCase
      */
     protected function seedData()
     {
+
         $type = ['seller', 'buyer'];
         for ($i = 1; $i <= 10; $i++) {
             JoinWithTestCountry::create(['id' => $i]);
         }
-        
+        for ($i = 1; $i <= 10; $i++) {
+            JoinWithTestCity::create(['id' => $i, 'country_id' => rand(1, 10)]);
+        }
+
         for ($i = 1; $i <= 1000; $i++) {
             JoinWithTestUser::create(['id' => $i]);
             JoinWithTestProfile::create([
                 'id' => $i,
                 'user_id' => $i,
-                'country_id' => rand(1, 10),
+                'city_id' => rand(1, 10),
                 'type' => $type[rand(0, 1)],
             ]);
         }
-
     }
-}
-
-class JoinWithTestUser extends Model
-{
-    use JoinWith;
-
-    protected $table = 'users';
-
-    protected $fillable = ['id'];
-
-    public $timestamps = false;
-
-    public function profile()
-    {
-        return $this
-            ->hasOne(JoinWithTestProfile::class, 'user_id', 'id');
-    }
-
-    public function profileWithDefault()
-    {
-        return $this
-            ->hasOne(JoinWithTestProfile::class, 'user_id', 'id')
-            ->withDefault([
-                'type' => 'seller',
-            ]);
-    }
-}
-
-class JoinWithTestProfile extends Model
-{
-    use JoinWith;
-
-    protected $table = 'profiles';
-
-    protected $fillable = ['id', 'user_id', 'country_id', 'type'];
-
-    public $timestamps = false;
-
-    public function user()
-    {
-        return $this
-            ->belongsTo(JoinWithTestUser::class, 'user_id', 'id');
-    }
-
-    public function country()
-    {
-        return $this
-            ->belongsTo(JoinWithTestCountry::class, 'country_id', 'id')
-            ->withDefault();
-    }
-}
-
-class JoinWithTestCountry extends Model
-{
-    use JoinWith;
-
-    protected $table = 'countries';
-
-    protected $fillable = ['id'];
-
-    public $timestamps = false;
-
 }
